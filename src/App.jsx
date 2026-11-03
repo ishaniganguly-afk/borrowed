@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import ClosetApp from "./Closet.jsx";
 
 async function request(path, options = {}) {
   const response = await fetch(path, {
@@ -176,54 +177,6 @@ function AuthScreen({ onAuthenticated }) {
   );
 }
 
-function ClosetScreen({ user, onLogout }) {
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-
-  async function logout() {
-    setBusy(true);
-    setError("");
-    try {
-      await request("/api/auth/logout", { method: "POST" });
-      onLogout();
-    } catch (requestError) {
-      setError(requestError.message);
-      setBusy(false);
-    }
-  }
-
-  return (
-    <main className="closet-page">
-      <header className="closet-header">
-        <Brand />
-        <div className="account-actions">
-          <span className="account-email">{user.email}</span>
-          <button className="logout-button" type="button" onClick={logout} disabled={busy}>
-            {busy ? "Logging out…" : "Log out"}
-          </button>
-        </div>
-      </header>
-      <section className="closet-content" aria-labelledby="closet-title">
-        <p className="eyebrow">Your space</p>
-        <h1 id="closet-title">My Closet<span>.</span></h1>
-        <div className="closet-placeholder">
-          <div className="placeholder-icon" aria-hidden="true">
-            <span>✳</span>
-          </div>
-          <p className="placeholder-kicker">A fresh start</p>
-          <h2>Your closet is ready for you.</h2>
-          <p>
-            You’re signed in as <strong>{user.email}</strong>. Your pieces will
-            have a home here.
-          </p>
-        </div>
-        {error && <p className="form-error closet-error" role="alert">{error}</p>}
-      </section>
-      <p className="closet-footer">Borrowed · Keep the good stuff close.</p>
-    </main>
-  );
-}
-
 export default function App() {
   const [user, setUser] = useState(null);
   const [checkingSession, setCheckingSession] = useState(true);
@@ -255,7 +208,7 @@ export default function App() {
   }
 
   return user ? (
-    <ClosetScreen user={user} onLogout={() => setUser(null)} />
+    <ClosetApp user={user} onLogout={() => setUser(null)} />
   ) : (
     <AuthScreen onAuthenticated={setUser} />
   );

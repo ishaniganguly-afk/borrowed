@@ -60,6 +60,74 @@ function regenerateSession(req) {
   });
 }
 
+function requireAuth(req, res, next) {
+  if (!req.session.userId) {
+    return res.status(401).json({ error: "Please log in to continue." });
+  }
+  return next();
+}
+
+function parseItemId(rawId) {
+  const id = Number(rawId);
+  return Number.isSafeInteger(id) && id > 0 ? id : null;
+}
+
+function presentItem(row) {
+  return {
+    id: row.id,
+    name: row.name,
+    categoryId: row.category_id,
+    category: row.category_name,
+    brand: row.brand ?? "",
+    size: row.size ?? "",
+    color: row.color ?? "",
+    price: row.price === null ? "" : Number(row.price),
+    purchasedOn: row.purchased_on ? String(row.purchased_on).slice(0, 10) : "",
+    fitNotes: row.fit_notes ?? "",
+    availableToLend: row.available_to_lend,
+    createdAt: row.created_at ? String(row.created_at).slice(0, 10) : "",
+  };
+}
+
+const itemSelect = `
+  SELECT
+    items.id,
+    items.category_id,
+    categories.name AS category_name,
+    items.name,
+    items.brand,
+    items.size,
+    items.color,
+    items.price,
+    TO_CHAR(items.purchased_on, 'YYYY-MM-DD') AS purchased_on,
+    items.fit_notes,
+    items.available_to_lend,
+    TO_CHAR(items.created_at, 'YYYY-MM-DD') AS created_at
+  FROM items
+  JOIN categories ON categories.id = items.category_id
+`;
+
+function itemValues(body = {}) {
+  return [
+    typeof body.name === "string" ? body.name.trim() : "",
+    body.categoryId === "" || body.categoryId == null ? null : Number(body.categoryId),
+    typeof body.brand === "string" ? body.brand : null,
+    typeof body.size === "string" ? body.size : null,
+    typeof body.color === "string" ? body.color : null,
+    body.price === "" || body.price == null ? null : body.price,
+    body.purchasedOn === "" || body.purchasedOn == null ? null : body.purchasedOn,
+    typeof body.fitNotes === "string" ? body.fitNotes : null,
+    body.availableToLend === true,
+  ];
+}
+
+function handleItemWriteError(error, res, next) {
+  if (["22P02", "22007", "22008", "23502", "23503"].includes(error.code)) {
+    return res.status(400).json({ error: "Unable to save item." });
+  }
+  return next(error);
+}
+
 app.get("/api/auth/me", async (req, res, next) => {
   if (!req.session.userId) return res.json({ user: null });
   try {
@@ -149,6 +217,125 @@ app.post("/api/auth/logout", (req, res) => {
     });
     return res.json({ ok: true });
   });
+});
+
+app.get("/api/categories", requireAuth, async (_req, res, next) => {
+  try {
+    const result = await pool.query(
+      "SELECT id, name FROM categories ORDER BY id ASC",
+    );
+    return res.json({ categories: result.rows });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+app.get("/api/items", requireAuth, async (req, res, next) => {
+  try {
+    const result = await pool.query(
+      `${itemSelect} WHERE items.user_id = $1 ORDER BY items.created_at DESC, items.id DESC`,
+      [req.session.userId],
+    );
+    return res.json({ items: result.rows.map(presentItem) });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+app.get("/api/items/:id", requireAuth, async (req, res, next) => {
+  const id = parseItemId(req.params.id);
+  if (!id) return res.status(404).json({ error: "Item not found." });
+
+  try {
+    const result = await pool.query(
+      `${itemSelect} WHERE items.id = $1 AND items.user_id = $2`,
+      [id, req.session.userId],
+    );
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: "Item not found." });
+    }
+    return res.json({ item: presentItem(result.rows[0]) });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+app.post("/api/items", requireAuth, async (req, res, next) => {
+  const values = itemValues(req.body);
+  try {
+    const result = await pool.query(
+      `INSERT INTO items (
+        user_id, category_id, name, brand, size, color, price,
+        purchased_on, fit_notes, available_to_lend
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      RETURNING id`,
+      [
+        req.session.userId,
+        values[1],
+        values[0],
+        ...values.slice(2),
+      ],
+    );
+    const item = await pool.query(
+      `${itemSelect} WHERE items.id = $1 AND items.user_id = $2`,
+      [result.rows[0].id, req.session.userId],
+    );
+    return res.status(201).json({ item: presentItem(item.rows[0]) });
+  } catch (error) {
+    return handleItemWriteError(error, res, next);
+  }
+});
+
+app.put("/api/items/:id", requireAuth, async (req, res, next) => {
+  const id = parseItemId(req.params.id);
+  if (!id) return res.status(404).json({ error: "Item not found." });
+
+  const values = itemValues(req.body);
+  try {
+    const result = await pool.query(
+      `UPDATE items SET
+        name = $3,
+        category_id = $4,
+        brand = $5,
+        size = $6,
+        color = $7,
+        price = $8,
+        purchased_on = $9,
+        fit_notes = $10,
+        available_to_lend = $11
+      WHERE id = $1 AND user_id = $2
+      RETURNING id`,
+      [id, req.session.userId, values[0], ...values.slice(1)],
+    );
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: "Item not found." });
+    }
+    const item = await pool.query(
+      `${itemSelect} WHERE items.id = $1 AND items.user_id = $2`,
+      [id, req.session.userId],
+    );
+    return res.json({ item: presentItem(item.rows[0]) });
+  } catch (error) {
+    return handleItemWriteError(error, res, next);
+  }
+});
+
+app.delete("/api/items/:id", requireAuth, async (req, res, next) => {
+  const id = parseItemId(req.params.id);
+  if (!id) return res.status(404).json({ error: "Item not found." });
+
+  try {
+    const result = await pool.query(
+      "DELETE FROM items WHERE id = $1 AND user_id = $2 RETURNING id",
+      [id, req.session.userId],
+    );
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: "Item not found." });
+    }
+    return res.json({ ok: true });
+  } catch (error) {
+    return next(error);
+  }
 });
 
 if (isProduction) {
