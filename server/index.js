@@ -87,6 +87,8 @@ function presentItem(row) {
     fitNotes: row.fit_notes ?? "",
     availableToLend: row.available_to_lend,
     starred: row.starred === true,
+    wearCount: row.wear_count,
+    costPerWear: row.price != null && row.wear_count > 0 ? Number(row.price) / row.wear_count : null,
     createdAt: row.created_at ? String(row.created_at).slice(0, 10) : "",
   };
 }
@@ -105,10 +107,15 @@ const itemSelect = `
     items.fit_notes,
     items.available_to_lend,
     stars.id IS NOT NULL AS starred,
+    wear_stats.wear_count,
     TO_CHAR(items.created_at, 'YYYY-MM-DD') AS created_at
   FROM items
   JOIN categories ON categories.id = items.category_id
   LEFT JOIN stars ON stars.item_id = items.id AND stars.user_id = items.user_id
+  LEFT JOIN LATERAL (
+    SELECT COUNT(*)::int AS wear_count FROM wears
+    WHERE wears.item_id = items.id AND wears.user_id = items.user_id
+  ) AS wear_stats ON TRUE
 `;
 
 function itemValues(body = {}) {
@@ -277,6 +284,71 @@ app.get("/api/items/:id", requireAuth, async (req, res, next) => {
       return res.status(404).json({ error: "Item not found." });
     }
     return res.json({ item: presentItem(result.rows[0]) });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+app.get("/api/items/:id/wears", requireAuth, async (req, res, next) => {
+  const id = parseItemId(req.params.id);
+  if (!id) return res.status(404).json({ error: "Item not found." });
+  try {
+    const owner = await pool.query("SELECT id FROM items WHERE id = $1 AND user_id = $2", [id, req.session.userId]);
+    if (!owner.rowCount) return res.status(404).json({ error: "Item not found." });
+    const result = await pool.query(
+      `SELECT wears.id, TO_CHAR(wears.worn_on, 'YYYY-MM-DD') AS "wornOn", wears.occasion
+       FROM wears JOIN items ON items.id = wears.item_id
+       WHERE wears.item_id = $1 AND wears.user_id = $2 AND items.user_id = $2
+       ORDER BY wears.worn_on DESC, wears.id DESC`,
+      [id, req.session.userId],
+    );
+    return res.json({ wears: result.rows });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+app.post("/api/items/:id/wears", requireAuth, async (req, res, next) => {
+  const id = parseItemId(req.params.id);
+  if (!id) return res.status(404).json({ error: "Item not found." });
+  try {
+    const owner = await pool.query("SELECT id FROM items WHERE id = $1 AND user_id = $2", [id, req.session.userId]);
+    if (!owner.rowCount) return res.status(404).json({ error: "Item not found." });
+    const wornOn = typeof req.body?.wornOn === "string" ? req.body.wornOn : "";
+    const occasion = typeof req.body?.occasion === "string" ? req.body.occasion.trim() : "";
+    const date = new Date(`${wornOn}T00:00:00Z`);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(wornOn) || wornOn.startsWith("0000") ||
+        Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== wornOn) {
+      return res.status(400).json({ error: "Please choose a valid wear date." });
+    }
+    if (!occasion) return res.status(400).json({ error: "Please add an event." });
+    const result = await pool.query(
+      `INSERT INTO wears (item_id, user_id, worn_on, occasion)
+       SELECT id, $2, $3, $4 FROM items WHERE id = $1 AND user_id = $2
+       RETURNING id, TO_CHAR(worn_on, 'YYYY-MM-DD') AS "wornOn", occasion`,
+      [id, req.session.userId, wornOn, occasion],
+    );
+    if (!result.rowCount) return res.status(404).json({ error: "Item not found." });
+    return res.status(201).json({ wear: result.rows[0] });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+app.delete("/api/items/:id/wears/:wearId", requireAuth, async (req, res, next) => {
+  const id = parseItemId(req.params.id);
+  const wearId = parseItemId(req.params.wearId);
+  if (!id || !wearId) return res.status(404).json({ error: "Wear not found." });
+  try {
+    const result = await pool.query(
+      `DELETE FROM wears USING items
+       WHERE wears.id = $1 AND wears.item_id = $2 AND wears.user_id = $3
+         AND items.id = wears.item_id AND items.user_id = $3
+       RETURNING wears.id`,
+      [wearId, id, req.session.userId],
+    );
+    if (!result.rowCount) return res.status(404).json({ error: "Wear not found." });
+    return res.json({ ok: true });
   } catch (error) {
     return next(error);
   }
