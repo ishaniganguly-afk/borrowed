@@ -6,6 +6,7 @@ import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
 import bcrypt from "bcryptjs";
 import pg from "pg";
+import { validateItem } from "../shared/item-validation.js";
 
 const { Pool } = pg;
 const port = Number(process.env.PORT) || 5000;
@@ -112,9 +113,9 @@ function itemValues(body = {}) {
     typeof body.name === "string" ? body.name.trim() : "",
     body.categoryId === "" || body.categoryId == null ? null : Number(body.categoryId),
     typeof body.brand === "string" ? body.brand : null,
-    typeof body.size === "string" ? body.size : null,
+    typeof body.size === "string" ? body.size.trim() : null,
     typeof body.color === "string" ? body.color : null,
-    body.price === "" || body.price == null ? null : body.price,
+    body.price == null || String(body.price).trim() === "" ? null : body.price,
     body.purchasedOn === "" || body.purchasedOn == null ? null : body.purchasedOn,
     typeof body.fitNotes === "string" ? body.fitNotes : null,
     body.availableToLend === true,
@@ -126,6 +127,22 @@ function handleItemWriteError(error, res, next) {
     return res.status(400).json({ error: "Unable to save item." });
   }
   return next(error);
+}
+
+async function itemValidationErrors(body) {
+  const errors = validateItem(body);
+  if (!errors.categoryId) {
+    const category = await pool.query("SELECT id FROM categories WHERE id = $1", [Number(body.categoryId)]);
+    if (category.rowCount === 0) errors.categoryId = "Please choose a category";
+  }
+  return errors;
+}
+
+function respondWithItemErrors(res, fieldErrors) {
+  return res.status(400).json({
+    error: "Please check the highlighted fields.",
+    fieldErrors,
+  });
 }
 
 app.get("/api/auth/me", async (req, res, next) => {
@@ -261,8 +278,10 @@ app.get("/api/items/:id", requireAuth, async (req, res, next) => {
 });
 
 app.post("/api/items", requireAuth, async (req, res, next) => {
-  const values = itemValues(req.body);
   try {
+    const fieldErrors = await itemValidationErrors(req.body);
+    if (Object.keys(fieldErrors).length) return respondWithItemErrors(res, fieldErrors);
+    const values = itemValues(req.body);
     const result = await pool.query(
       `INSERT INTO items (
         user_id, category_id, name, brand, size, color, price,
@@ -290,8 +309,15 @@ app.put("/api/items/:id", requireAuth, async (req, res, next) => {
   const id = parseItemId(req.params.id);
   if (!id) return res.status(404).json({ error: "Item not found." });
 
-  const values = itemValues(req.body);
   try {
+    const ownedItem = await pool.query(
+      "SELECT id FROM items WHERE id = $1 AND user_id = $2",
+      [id, req.session.userId],
+    );
+    if (ownedItem.rowCount === 0) return res.status(404).json({ error: "Item not found." });
+    const fieldErrors = await itemValidationErrors(req.body);
+    if (Object.keys(fieldErrors).length) return respondWithItemErrors(res, fieldErrors);
+    const values = itemValues(req.body);
     const result = await pool.query(
       `UPDATE items SET
         name = $3,
@@ -355,6 +381,9 @@ if (isProduction) {
 app.use((error, _req, res, _next) => {
   console.error("Request failed:", error.message);
   if (res.headersSent) return;
+  if (error.type === "entity.parse.failed") {
+    return res.status(400).json({ error: "Please send a valid request." });
+  }
   return res.status(500).json({ error: "Something went wrong. Please try again." });
 });
 
