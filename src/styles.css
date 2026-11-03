@@ -786,6 +786,23 @@ input:focus-visible {
   box-shadow: 0 2px 7px rgba(35, 20, 51, 0.08);
 }
 
+.closet-find-controls {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 16px;
+  margin-top: 22px;
+  padding: 20px;
+  border: 1px solid rgba(35, 20, 51, 0.08);
+  border-radius: 21px;
+  background: rgba(255, 250, 252, 0.9);
+}
+
+.closet-find-controls .item-lend-check {
+  align-self: end;
+  min-height: 45px;
+  margin-top: 0;
+}
+
 .closet-empty {
   max-width: 620px;
   margin-top: 36px;
