@@ -911,6 +911,16 @@ input:focus-visible {
   grid-column: 1 / -1;
 }
 
+.item-form-field .item-field-error {
+  color: #a12550;
+  font-size: 0.82rem;
+  font-weight: 500;
+}
+
+.item-form-field [aria-invalid="true"] {
+  border-color: var(--pink);
+}
+
 .item-lend-check {
   display: inline-flex;
   align-items: center;

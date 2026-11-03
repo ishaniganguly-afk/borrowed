@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { validateItem } from "../shared/item-validation.js";
 
 async function closetRequest(path, options = {}) {
   const response = await fetch(path, {
@@ -11,7 +12,9 @@ async function closetRequest(path, options = {}) {
   });
   const data = await response.json();
   if (!response.ok) {
-    throw new Error(data.error || "Something went wrong. Please try again.");
+    const error = new Error(data.error || "Something went wrong. Please try again.");
+    error.fieldErrors = data.fieldErrors;
+    throw error;
   }
   return data;
 }
@@ -209,19 +212,53 @@ function ItemForm({ item, categories, onCancel, onSaved }) {
   }));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState({});
+  const [submitted, setSubmitted] = useState(false);
+
+  function checkFields(values) {
+    return validateItem(values, categories.map((category) => category.id));
+  }
+
+  function fieldError(name) {
+    return fieldErrors[name] ? (
+      <span className="item-field-error" id={`item-${name}-error`} role="alert">
+        {fieldErrors[name]}
+      </span>
+    ) : null;
+  }
 
   function updateField(event) {
     const { name, value, type, checked } = event.target;
-    setForm((current) => ({
-      ...current,
+    const nextForm = {
+      ...form,
       [name]: type === "checkbox" ? checked : value,
-    }));
+    };
+    setForm(nextForm);
+    if (submitted) {
+      const problems = checkFields(nextForm);
+      if (name === "price" && event.target.validity.badInput) {
+        problems.price = "Please enter a valid price";
+      }
+      setFieldErrors(problems);
+    }
+    setError("");
   }
 
   async function handleSubmit(event) {
     event.preventDefault();
-    setSaving(true);
+    if (saving) return;
+    setSubmitted(true);
+    const problems = checkFields(form);
+    if (event.currentTarget.elements.namedItem("price").validity.badInput) {
+      problems.price = "Please enter a valid price";
+    }
+    setFieldErrors(problems);
     setError("");
+    if (Object.keys(problems).length) {
+      event.currentTarget.elements.namedItem(Object.keys(problems)[0])?.focus();
+      return;
+    }
+    setSaving(true);
     try {
       const isEditing = Boolean(item);
       const { item: savedItem } = await closetRequest(
@@ -233,7 +270,11 @@ function ItemForm({ item, categories, onCancel, onSaved }) {
       );
       onSaved(savedItem);
     } catch (requestError) {
-      setError(requestError.message);
+      if (requestError.fieldErrors) {
+        setFieldErrors(requestError.fieldErrors);
+      } else {
+        setError(requestError.message);
+      }
       setSaving(false);
     }
   }
@@ -246,11 +287,14 @@ function ItemForm({ item, categories, onCancel, onSaved }) {
       <p className="eyebrow">{item ? "Make it yours" : "A new favorite"}</p>
       <h1>{item ? "Edit item" : "Add to your closet"}<span>.</span></h1>
 
-      <form className="item-form-card" onSubmit={handleSubmit}>
+      <form className="item-form-card" onSubmit={handleSubmit} noValidate>
         <div className="item-form-grid">
           <label className="item-form-field">
             <span>Name</span>
-            <input name="name" value={form.name} onChange={updateField} required />
+            <input name="name" value={form.name} onChange={updateField} required
+              aria-invalid={Boolean(fieldErrors.name)}
+              aria-describedby={fieldErrors.name ? "item-name-error" : undefined} />
+            {fieldError("name")}
           </label>
           <label className="item-form-field">
             <span>Category</span>
@@ -259,12 +303,15 @@ function ItemForm({ item, categories, onCancel, onSaved }) {
               value={form.categoryId}
               onChange={updateField}
               required
+              aria-invalid={Boolean(fieldErrors.categoryId)}
+              aria-describedby={fieldErrors.categoryId ? "item-categoryId-error" : undefined}
             >
               <option value="">Choose a category</option>
               {categories.map((category) => (
                 <option key={category.id} value={category.id}>{category.name}</option>
               ))}
             </select>
+            {fieldError("categoryId")}
           </label>
           <label className="item-form-field">
             <span>Brand</span>
@@ -272,7 +319,10 @@ function ItemForm({ item, categories, onCancel, onSaved }) {
           </label>
           <label className="item-form-field">
             <span>Size</span>
-            <input name="size" value={form.size} onChange={updateField} required />
+            <input name="size" value={form.size} onChange={updateField} required
+              aria-invalid={Boolean(fieldErrors.size)}
+              aria-describedby={fieldErrors.size ? "item-size-error" : undefined} />
+            {fieldError("size")}
           </label>
           <label className="item-form-field">
             <span>Color</span>
@@ -284,9 +334,13 @@ function ItemForm({ item, categories, onCancel, onSaved }) {
               name="price"
               type="number"
               step="0.01"
+              min="0"
               value={form.price}
               onChange={updateField}
+              aria-invalid={Boolean(fieldErrors.price)}
+              aria-describedby={fieldErrors.price ? "item-price-error" : undefined}
             />
+            {fieldError("price")}
           </label>
           <label className="item-form-field">
             <span>Purchase date</span>
