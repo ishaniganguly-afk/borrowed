@@ -1,0 +1,1 @@
+- [Deployment smoke-test ports](deployment-smoke-test-ports.md) — temporary test listeners can automatically add exposed port mappings; clean them up after testing.
