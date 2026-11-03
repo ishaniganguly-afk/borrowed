@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { validateItem } from "../shared/item-validation.js";
+import { findClosetItems } from "./closet-filters.js";
 
 async function closetRequest(path, options = {}) {
   const response = await fetch(path, {
@@ -110,14 +111,14 @@ function StarButton({ item, onToggle, busy }) {
   );
 }
 
-function ItemGrid({ items, onOpen, onToggleStar, starring, starredOnly }) {
+function ItemGrid({ items, onOpen, onToggleStar, starring, starredOnly, filtered }) {
   if (items.length === 0) {
     return (
       <section className="closet-empty">
         <div className="placeholder-icon" aria-hidden="true">✳</div>
-        <p className="placeholder-kicker">{starredOnly ? "Your favorites" : "A fresh start"}</p>
-        <h2>{starredOnly ? "No starred pieces yet." : "Your closet is ready for its first piece."}</h2>
-        <p>{starredOnly ? "Star a piece from All items to find it here." : "Add an item and it’ll be waiting here whenever you need it."}</p>
+        <p className="placeholder-kicker">{filtered ? "Keep looking" : starredOnly ? "Your favorites" : "A fresh start"}</p>
+        <h2>{filtered ? "No matching pieces." : starredOnly ? "No starred pieces yet." : "Your closet is ready for its first piece."}</h2>
+        <p>{filtered ? "Try a different search or adjust your filters." : starredOnly ? "Star a piece from All items to find it here." : "Add an item and it’ll be waiting here whenever you need it."}</p>
       </section>
     );
   }
@@ -149,7 +150,12 @@ function ItemGrid({ items, onOpen, onToggleStar, starring, starredOnly }) {
   );
 }
 
-function ClosetList({ items, onAdd, onOpen, onToggleStar, starring, starredOnly, onViewChange, error }) {
+function ClosetList({ items, onAdd, onOpen, onToggleStar, starring, starredOnly, onViewChange, error, filters, onFiltersChange, categories }) {
+  const filtered = Boolean(filters.query.trim() || filters.categoryId || filters.availableOnly);
+  function updateFilter(event) {
+    const { name, value, checked, type } = event.target;
+    onFiltersChange((current) => ({ ...current, [name]: type === "checkbox" ? checked : value }));
+  }
   return (
     <section className="closet-content">
       <div className="closet-heading-row">
@@ -157,7 +163,7 @@ function ClosetList({ items, onAdd, onOpen, onToggleStar, starring, starredOnly,
           <p className="eyebrow">Your space</p>
           <h1 id="closet-title">My Closet<span>.</span></h1>
           <p className="closet-subtitle">
-            {items.length === 1 ? "1 piece" : `${items.length} pieces`} {starredOnly ? "starred" : "in your closet"}
+            {items.length === 1 ? "1 piece" : `${items.length} pieces`} {filtered ? `matching${starredOnly ? " in Starred" : ""}` : starredOnly ? "starred" : "in your closet"}
           </p>
         </div>
         <button className="item-primary-button" type="button" onClick={onAdd}>
@@ -168,8 +174,33 @@ function ClosetList({ items, onAdd, onOpen, onToggleStar, starring, starredOnly,
         <button type="button" aria-pressed={!starredOnly} onClick={() => onViewChange(false)}>All items</button>
         <button type="button" aria-pressed={Boolean(starredOnly)} onClick={() => onViewChange(true)}>Starred</button>
       </nav>
+      <div className="closet-find-controls" role="search" aria-label="Find closet items">
+        <label className="item-form-field">
+          <span>Search</span>
+          <input type="search" name="query" placeholder="Search name or brand" value={filters.query} onChange={updateFilter} />
+        </label>
+        <label className="item-form-field">
+          <span>Category</span>
+          <select name="categoryId" value={filters.categoryId} onChange={updateFilter}>
+            <option value="">All categories</option>
+            {categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
+          </select>
+        </label>
+        <label className="item-form-field">
+          <span>Sort by</span>
+          <select name="sort" value={filters.sort} onChange={updateFilter}>
+            <option value="newest">Newest</option>
+            <option value="price-desc">Price: high to low</option>
+            <option value="price-asc">Price: low to high</option>
+          </select>
+        </label>
+        <label className="item-lend-check">
+          <input type="checkbox" name="availableOnly" checked={filters.availableOnly} onChange={updateFilter} />
+          <span>Available to lend</span>
+        </label>
+      </div>
       {error && <p className="form-error" role="alert">{error}</p>}
-      <ItemGrid items={items} onOpen={onOpen} onToggleStar={onToggleStar} starring={starring} starredOnly={starredOnly} />
+      <ItemGrid items={items} onOpen={onOpen} onToggleStar={onToggleStar} starring={starring} starredOnly={starredOnly} filtered={filtered} />
     </section>
   );
 }
@@ -413,6 +444,9 @@ function ItemForm({ item, categories, onCancel, onSaved }) {
 export default function ClosetApp({ user, onLogout }) {
   const [route, setRoute] = useState(readRoute);
   const [items, setItems] = useState([]);
+  const [filters, setFilters] = useState({
+    query: "", categoryId: "", availableOnly: false, sort: "newest",
+  });
   const [categories, setCategories] = useState([]);
   const [item, setItem] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -526,7 +560,10 @@ export default function ClosetApp({ user, onLogout }) {
         </section>
       ) : route.type === "list" ? (
         <ClosetList
-          items={route.starred ? items.filter((entry) => entry.starred) : items}
+          items={findClosetItems(items, { ...filters, starredOnly: route.starred })}
+          filters={filters}
+          onFiltersChange={setFilters}
+          categories={categories}
           onAdd={() => navigate("/items/new")}
           onOpen={(id) => navigate(`/items/${id}`)}
           onToggleStar={toggleStar}
