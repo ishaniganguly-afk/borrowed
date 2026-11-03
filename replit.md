@@ -8,7 +8,9 @@
 
 ## Database schema
 
-`server/schema.sql` is the schema source for the `users` and `user_sessions` tables. Apply it to the development PostgreSQL database when setting up a fresh environment. The app intentionally does not create or alter tables when it starts.
+`server/schema.sql` is the schema source for the `users`, `user_sessions`, `categories`, and `items` tables. It seeds the six planned categories. Apply it to the development PostgreSQL database when setting up a fresh environment. The app intentionally does not create or alter tables when it starts.
+
+Each item references its owner in `users` and its category in `categories`. The API always scopes item operations to the signed-in user's ID.
 
 ## Authentication scope
 
