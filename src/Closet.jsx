@@ -22,6 +22,7 @@ async function closetRequest(path, options = {}) {
 function readRoute() {
   const path = window.location.pathname.replace(/\/+$/, "") || "/";
   if (path === "/items/new") return { type: "create" };
+  if (path === "/starred") return { type: "list", starred: true };
 
   const editMatch = path.match(/^\/items\/([^/]+)\/edit$/);
   if (editMatch) return { type: "edit", id: editMatch[1] };
@@ -94,14 +95,29 @@ function ClosetHeader({ user, onLogout }) {
   );
 }
 
-function ItemGrid({ items, onOpen }) {
+function StarButton({ item, onToggle, busy }) {
+  return (
+    <button
+      type="button"
+      className={`item-star-button${item.starred ? " is-starred" : ""}`}
+      aria-label={`${item.starred ? "Unstar" : "Star"} ${item.name}`}
+      aria-pressed={item.starred}
+      disabled={busy}
+      onClick={() => onToggle(item)}
+    >
+      <span aria-hidden="true">{item.starred ? "★" : "☆"}</span>
+    </button>
+  );
+}
+
+function ItemGrid({ items, onOpen, onToggleStar, starring, starredOnly }) {
   if (items.length === 0) {
     return (
       <section className="closet-empty">
         <div className="placeholder-icon" aria-hidden="true">✳</div>
-        <p className="placeholder-kicker">A fresh start</p>
-        <h2>Your closet is ready for its first piece.</h2>
-        <p>Add an item and it’ll be waiting here whenever you need it.</p>
+        <p className="placeholder-kicker">{starredOnly ? "Your favorites" : "A fresh start"}</p>
+        <h2>{starredOnly ? "No starred pieces yet." : "Your closet is ready for its first piece."}</h2>
+        <p>{starredOnly ? "Star a piece from All items to find it here." : "Add an item and it’ll be waiting here whenever you need it."}</p>
       </section>
     );
   }
@@ -109,10 +125,10 @@ function ItemGrid({ items, onOpen }) {
   return (
     <div className="item-grid">
       {items.map((item) => (
+        <article className="item-card-shell" key={item.id}>
         <a
           className="item-card"
           href={`/items/${item.id}`}
-          key={item.id}
           onClick={(event) => {
             event.preventDefault();
             onOpen(item.id);
@@ -126,12 +142,14 @@ function ItemGrid({ items, onOpen }) {
           </div>
           <span className="item-card-arrow" aria-hidden="true">↗</span>
         </a>
+        <StarButton item={item} onToggle={onToggleStar} busy={starring} />
+        </article>
       ))}
     </div>
   );
 }
 
-function ClosetList({ items, onAdd, onOpen }) {
+function ClosetList({ items, onAdd, onOpen, onToggleStar, starring, starredOnly, onViewChange, error }) {
   return (
     <section className="closet-content">
       <div className="closet-heading-row">
@@ -139,19 +157,24 @@ function ClosetList({ items, onAdd, onOpen }) {
           <p className="eyebrow">Your space</p>
           <h1 id="closet-title">My Closet<span>.</span></h1>
           <p className="closet-subtitle">
-            {items.length === 1 ? "1 piece" : `${items.length} pieces`} in your closet
+            {items.length === 1 ? "1 piece" : `${items.length} pieces`} {starredOnly ? "starred" : "in your closet"}
           </p>
         </div>
         <button className="item-primary-button" type="button" onClick={onAdd}>
           <span aria-hidden="true">＋</span> Add item
         </button>
       </div>
-      <ItemGrid items={items} onOpen={onOpen} />
+      <nav className="closet-views" aria-label="Closet views">
+        <button type="button" aria-pressed={!starredOnly} onClick={() => onViewChange(false)}>All items</button>
+        <button type="button" aria-pressed={Boolean(starredOnly)} onClick={() => onViewChange(true)}>Starred</button>
+      </nav>
+      {error && <p className="form-error" role="alert">{error}</p>}
+      <ItemGrid items={items} onOpen={onOpen} onToggleStar={onToggleStar} starring={starring} starredOnly={starredOnly} />
     </section>
   );
 }
 
-function ItemDetails({ item, onBack, onEdit, onDelete, deleting, error }) {
+function ItemDetails({ item, onBack, onEdit, onDelete, deleting, error, onToggleStar, starring }) {
   return (
     <section className="closet-content item-detail-page">
       <button className="text-back-button" type="button" onClick={onBack}>
@@ -163,6 +186,7 @@ function ItemDetails({ item, onBack, onEdit, onDelete, deleting, error }) {
           <h1>{item.name}<span>.</span></h1>
         </div>
         <div className="item-detail-actions">
+          <StarButton item={item} onToggle={onToggleStar} busy={starring} />
           <button className="item-secondary-button" type="button" onClick={onEdit}>
             Edit
           </button>
@@ -395,7 +419,8 @@ export default function ClosetApp({ user, onLogout }) {
   const [loadError, setLoadError] = useState("");
   const [actionError, setActionError] = useState("");
   const [deleting, setDeleting] = useState(false);
-  const routeKey = `${route.type}:${route.id ?? ""}`;
+  const [starring, setStarring] = useState(false);
+  const routeKey = `${route.type}:${route.id ?? ""}:${route.starred ? "starred" : "all"}`;
 
   function navigate(path) {
     window.history.pushState({}, "", path);
@@ -428,7 +453,7 @@ export default function ClosetApp({ user, onLogout }) {
         setCategories(loadedCategories);
 
         if (route.type === "list") {
-          const { items: loadedItems } = await closetRequest("/api/items");
+          const { items: loadedItems } = await closetRequest(route.starred ? "/api/items?starred=true" : "/api/items");
           if (active) setItems(loadedItems);
         } else if (route.type === "detail" || route.type === "edit") {
           const { item: loadedItem } = await closetRequest(`/api/items/${route.id}`);
@@ -460,6 +485,24 @@ export default function ClosetApp({ user, onLogout }) {
     }
   }
 
+  async function toggleStar(target) {
+    if (starring) return;
+    setStarring(true);
+    setActionError("");
+    try {
+      const { starred } = await closetRequest(`/api/items/${target.id}/star`, {
+        method: target.starred ? "DELETE" : "PUT",
+      });
+      setItems((current) => current
+        .map((entry) => entry.id === target.id ? { ...entry, starred } : entry));
+      setItem((current) => current?.id === target.id ? { ...current, starred } : current);
+    } catch (error) {
+      setActionError(error.message);
+    } finally {
+      setStarring(false);
+    }
+  }
+
   function handleSaved(savedItem) {
     navigate(`/items/${savedItem.id}`);
   }
@@ -483,9 +526,14 @@ export default function ClosetApp({ user, onLogout }) {
         </section>
       ) : route.type === "list" ? (
         <ClosetList
-          items={items}
+          items={route.starred ? items.filter((entry) => entry.starred) : items}
           onAdd={() => navigate("/items/new")}
           onOpen={(id) => navigate(`/items/${id}`)}
+          onToggleStar={toggleStar}
+          starring={starring}
+          starredOnly={route.starred}
+          onViewChange={(starred) => navigate(starred ? "/starred" : "/")}
+          error={actionError}
         />
       ) : route.type === "create" || route.type === "edit" ? (
         <ItemForm
@@ -503,6 +551,8 @@ export default function ClosetApp({ user, onLogout }) {
           onDelete={deleteItem}
           deleting={deleting}
           error={actionError}
+          onToggleStar={toggleStar}
+          starring={starring}
         />
       ) : null}
       <p className="closet-footer">Borrowed · Keep the good stuff close.</p>

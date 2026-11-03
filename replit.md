@@ -8,9 +8,11 @@
 
 ## Database schema
 
-`server/schema.sql` is the schema source for the `users`, `user_sessions`, `categories`, and `items` tables. It seeds the six planned categories. Apply it to the development PostgreSQL database when setting up a fresh environment. The app intentionally does not create or alter tables when it starts.
+`server/schema.sql` is the schema source for the `users`, `user_sessions`, `categories`, `items`, and `stars` tables. It seeds the six planned categories. Apply it to the development PostgreSQL database when setting up a fresh environment. The app intentionally does not create or alter tables when it starts.
 
 Each item references its owner in `users` and its category in `categories`. The API always scopes item operations to the signed-in user's ID.
+
+Stars are stored in one shared table with a unique `(user_id, item_id)` pair. Star/unstar requests only work for items owned by the signed-in user, and deleting an item removes its stars.
 
 ## Authentication scope
 

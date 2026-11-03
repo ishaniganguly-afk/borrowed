@@ -86,6 +86,7 @@ function presentItem(row) {
     purchasedOn: row.purchased_on ? String(row.purchased_on).slice(0, 10) : "",
     fitNotes: row.fit_notes ?? "",
     availableToLend: row.available_to_lend,
+    starred: row.starred === true,
     createdAt: row.created_at ? String(row.created_at).slice(0, 10) : "",
   };
 }
@@ -103,9 +104,11 @@ const itemSelect = `
     TO_CHAR(items.purchased_on, 'YYYY-MM-DD') AS purchased_on,
     items.fit_notes,
     items.available_to_lend,
+    stars.id IS NOT NULL AS starred,
     TO_CHAR(items.created_at, 'YYYY-MM-DD') AS created_at
   FROM items
   JOIN categories ON categories.id = items.category_id
+  LEFT JOIN stars ON stars.item_id = items.id AND stars.user_id = items.user_id
 `;
 
 function itemValues(body = {}) {
@@ -250,8 +253,10 @@ app.get("/api/categories", requireAuth, async (_req, res, next) => {
 app.get("/api/items", requireAuth, async (req, res, next) => {
   try {
     const result = await pool.query(
-      `${itemSelect} WHERE items.user_id = $1 ORDER BY items.created_at DESC, items.id DESC`,
-      [req.session.userId],
+      `${itemSelect} WHERE items.user_id = $1
+        AND ($2::boolean = FALSE OR stars.id IS NOT NULL)
+        ORDER BY items.created_at DESC, items.id DESC`,
+      [req.session.userId, req.query.starred === "true"],
     );
     return res.json({ items: result.rows.map(presentItem) });
   } catch (error) {
@@ -272,6 +277,51 @@ app.get("/api/items/:id", requireAuth, async (req, res, next) => {
       return res.status(404).json({ error: "Item not found." });
     }
     return res.json({ item: presentItem(result.rows[0]) });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+app.put("/api/items/:id/star", requireAuth, async (req, res, next) => {
+  const id = parseItemId(req.params.id);
+  if (!id) return res.status(404).json({ error: "Item not found." });
+  try {
+    const result = await pool.query(
+      `WITH owned_item AS (
+        SELECT id FROM items WHERE id = $1 AND user_id = $2
+      ), added AS (
+        INSERT INTO stars (user_id, item_id)
+        SELECT $2, id FROM owned_item
+        ON CONFLICT (user_id, item_id) DO NOTHING
+        RETURNING id
+      )
+      SELECT id FROM owned_item`,
+      [id, req.session.userId],
+    );
+    if (!result.rowCount) return res.status(404).json({ error: "Item not found." });
+    return res.json({ starred: true });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+app.delete("/api/items/:id/star", requireAuth, async (req, res, next) => {
+  const id = parseItemId(req.params.id);
+  if (!id) return res.status(404).json({ error: "Item not found." });
+  try {
+    const result = await pool.query(
+      `WITH owned_item AS (
+        SELECT id FROM items WHERE id = $1 AND user_id = $2
+      ), removed AS (
+        DELETE FROM stars USING owned_item
+        WHERE stars.item_id = owned_item.id AND stars.user_id = $2
+        RETURNING stars.id
+      )
+      SELECT id FROM owned_item`,
+      [id, req.session.userId],
+    );
+    if (!result.rowCount) return res.status(404).json({ error: "Item not found." });
+    return res.json({ starred: false });
   } catch (error) {
     return next(error);
   }

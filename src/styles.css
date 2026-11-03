@@ -658,6 +658,7 @@ input:focus-visible {
   position: relative;
   display: flex;
   min-height: 180px;
+  height: 100%;
   flex-direction: column;
   align-items: flex-start;
   padding: 22px;
@@ -677,6 +678,7 @@ input:focus-visible {
 }
 
 .item-card-category {
+  max-width: calc(100% - 40px);
   padding: 6px 9px;
   border-radius: 999px;
   background: #fceaf1;
@@ -714,10 +716,74 @@ input:focus-visible {
 
 .item-card-arrow {
   position: absolute;
-  top: 22px;
+  bottom: 22px;
   right: 21px;
   color: var(--pink);
   font-size: 17px;
+}
+
+.item-card-shell {
+  position: relative;
+  min-width: 0;
+}
+
+.item-star-button {
+  display: inline-grid;
+  width: 42px;
+  height: 42px;
+  flex-shrink: 0;
+  place-items: center;
+  border: 1px solid #e8dce3;
+  border-radius: 12px;
+  background: #fffafc;
+  color: var(--plum);
+  font-size: 25px;
+  cursor: pointer;
+}
+
+.item-card-shell > .item-star-button {
+  position: absolute;
+  top: 13px;
+  right: 13px;
+}
+
+.item-star-button.is-starred {
+  background: var(--yellow);
+  border-color: var(--yellow);
+}
+
+.item-star-button:hover:not(:disabled) {
+  border-color: var(--pink);
+}
+
+.item-star-button:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.closet-views {
+  display: inline-flex;
+  gap: 5px;
+  margin-top: 24px;
+  padding: 5px;
+  border-radius: 14px;
+  background: #f5e7ef;
+}
+
+.closet-views button {
+  padding: 10px 18px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--plum);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.closet-views button[aria-pressed="true"] {
+  background: #fffafc;
+  box-shadow: 0 2px 7px rgba(35, 20, 51, 0.08);
 }
 
 .closet-empty {
