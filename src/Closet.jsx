@@ -4,6 +4,7 @@ import { findClosetItems } from "./closet-filters.js";
 import WearLog from "./WearLog.jsx";
 import Dashboard from "./Dashboard.jsx";
 import PickForMe from "./PickForMe.jsx";
+import ShareCloset from "./ShareCloset.jsx";
 
 async function closetRequest(path, options = {}) {
   const response = await fetch(path, {
@@ -182,6 +183,7 @@ function ClosetList({ items, onAdd, onOpen, onToggleStar, starring, starredOnly,
           <span aria-hidden="true">＋</span> Add item
         </button>
       </div>
+      <ShareCloset />
       <nav className="closet-views" aria-label="Closet views">
         <button type="button" aria-pressed={!starredOnly} onClick={() => onViewChange(false)}>All items</button>
         <button type="button" aria-pressed={Boolean(starredOnly)} onClick={() => onViewChange(true)}>Starred</button>

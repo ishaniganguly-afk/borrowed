@@ -1,4 +1,5 @@
 import path from "node:path";
+import { randomUUID } from "node:crypto";
 import { createServer } from "node:http";
 import { fileURLToPath } from "node:url";
 import express from "express";
@@ -252,6 +253,53 @@ app.get("/api/categories", requireAuth, async (_req, res, next) => {
       "SELECT id, name FROM categories ORDER BY id ASC",
     );
     return res.json({ categories: result.rows });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+app.post("/api/share-link", requireAuth, async (req, res, next) => {
+  try {
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const result = await pool.query(
+          `UPDATE users SET share_slug = COALESCE(share_slug, $2)
+           WHERE id = $1 RETURNING share_slug`,
+          [req.session.userId, randomUUID()],
+        );
+        if (!result.rowCount) return res.status(404).json({ error: "Account not found." });
+        return res.json({ path: `/c/${encodeURIComponent(result.rows[0].share_slug)}` });
+      } catch (error) {
+        if (error.code !== "23505" || attempt === 2) throw error;
+      }
+    }
+  } catch (error) {
+    return next(error);
+  }
+});
+
+app.get("/api/public/closets/:slug", async (req, res, next) => {
+  res.set("Cache-Control", "no-store");
+  if (req.params.slug.length > 200) {
+    return res.status(404).json({ error: "Closet not found" });
+  }
+  try {
+    // Deliberately use a public field allowlist, not the private item serializer.
+    const result = await pool.query(
+      `SELECT COALESCE((
+        SELECT JSON_AGG(public_item) FROM (
+          SELECT items.name, categories.name AS category, items.brand,
+            items.size, items.color, items.fit_notes AS "fitNotes"
+          FROM items JOIN categories ON categories.id = items.category_id
+          WHERE items.user_id = users.id AND items.available_to_lend = TRUE
+          ORDER BY items.created_at DESC, items.id DESC
+        ) AS public_item
+      ), '[]'::json) AS items
+      FROM users WHERE share_slug = $1`,
+      [req.params.slug],
+    );
+    if (!result.rowCount) return res.status(404).json({ error: "Closet not found" });
+    return res.json({ items: result.rows[0].items });
   } catch (error) {
     return next(error);
   }
