@@ -3,6 +3,7 @@ import { validateItem } from "../shared/item-validation.js";
 import { findClosetItems } from "./closet-filters.js";
 import WearLog from "./WearLog.jsx";
 import Dashboard from "./Dashboard.jsx";
+import PickForMe from "./PickForMe.jsx";
 
 async function closetRequest(path, options = {}) {
   const response = await fetch(path, {
@@ -211,6 +212,13 @@ function ClosetList({ items, onAdd, onOpen, onToggleStar, starring, starredOnly,
           <span>Available to lend</span>
         </label>
       </div>
+      <PickForMe
+        key={`${filters.query}:${filters.categoryId}:${filters.availableOnly}:${Boolean(starredOnly)}`}
+        items={items}
+        onOpen={onOpen}
+        filtered={filtered}
+        starredOnly={starredOnly}
+      />
       {error && <p className="form-error" role="alert">{error}</p>}
       <ItemGrid items={items} onOpen={onOpen} onToggleStar={onToggleStar} starring={starring} starredOnly={starredOnly} filtered={filtered} />
     </section>
