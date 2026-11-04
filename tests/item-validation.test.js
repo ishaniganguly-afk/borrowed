@@ -1,8 +1,24 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { validateItem } from "../shared/item-validation.js";
+import { todayDate, validateItem } from "../shared/item-validation.js";
 
 const valid = { name: "Linen shirt", categoryId: 2, size: "M", price: "" };
+
+test("purchase date is optional, allows today and past dates, and rejects future dates", () => {
+  const today = todayDate();
+  const tomorrow = new Date(`${today}T00:00:00Z`);
+  tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
+  const yesterday = new Date(`${today}T00:00:00Z`);
+  yesterday.setUTCDate(yesterday.getUTCDate() - 1);
+
+  for (const purchasedOn of [undefined, null, "", "  ", today, yesterday.toISOString().slice(0, 10)]) {
+    assert.deepEqual(validateItem({ ...valid, purchasedOn }, [1, 2]), {});
+  }
+  assert.equal(
+    validateItem({ ...valid, purchasedOn: tomorrow.toISOString().slice(0, 10) }, [1, 2]).purchasedOn,
+    "Purchase date can’t be in the future",
+  );
+});
 
 test("required fields reject missing and whitespace-only values", () => {
   assert.deepEqual(Object.keys(validateItem({})), ["name", "categoryId", "size"]);
