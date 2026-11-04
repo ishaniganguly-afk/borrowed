@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { validateItem } from "../shared/item-validation.js";
+import { todayDate, validateItem } from "../shared/item-validation.js";
 import { findClosetItems } from "./closet-filters.js";
 import WearLog from "./WearLog.jsx";
 import Dashboard from "./Dashboard.jsx";
@@ -427,9 +427,13 @@ function ItemForm({ item, categories, onCancel, onSaved }) {
             <input
               name="purchasedOn"
               type="date"
+              max={todayDate()}
               value={form.purchasedOn}
               onChange={updateField}
+              aria-invalid={Boolean(fieldErrors.purchasedOn)}
+              aria-describedby={fieldErrors.purchasedOn ? "item-purchasedOn-error" : undefined}
             />
+            {fieldError("purchasedOn")}
           </label>
           <label className="item-form-field item-form-notes">
             <span>Fit notes</span>

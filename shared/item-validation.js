@@ -1,3 +1,8 @@
+export function todayDate() {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+}
+
 export function validateItem(input, categoryIds) {
   const item = input && typeof input === "object" ? input : {};
   const errors = {};
@@ -25,6 +30,11 @@ export function validateItem(input, categoryIds) {
     } else if (Number(price) < 0) {
       errors.price = "Price can’t be negative";
     }
+  }
+
+  const purchasedOn = typeof item.purchasedOn === "string" ? item.purchasedOn.trim() : "";
+  if (purchasedOn && Date.parse(purchasedOn) > Date.parse(todayDate())) {
+    errors.purchasedOn = "Purchase date can’t be in the future";
   }
 
   return errors;
