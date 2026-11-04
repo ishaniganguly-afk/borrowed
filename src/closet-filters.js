@@ -10,6 +10,10 @@ export function findClosetItems(items, {
     (!availableOnly || item.availableToLend));
 
   return matches.sort((a, b) => {
+    if (sort === "most-worn") {
+      const difference = (b.wearCount ?? 0) - (a.wearCount ?? 0);
+      if (difference) return difference;
+    }
     if (sort === "price-asc" || sort === "price-desc") {
       const aMissing = a.price === "" || a.price == null;
       const bMissing = b.price === "" || b.price == null;

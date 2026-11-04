@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { validateItem } from "../shared/item-validation.js";
 import { findClosetItems } from "./closet-filters.js";
+import WearLog from "./WearLog.jsx";
 
 async function closetRequest(path, options = {}) {
   const response = await fetch(path, {
@@ -190,6 +191,7 @@ function ClosetList({ items, onAdd, onOpen, onToggleStar, starring, starredOnly,
           <span>Sort by</span>
           <select name="sort" value={filters.sort} onChange={updateFilter}>
             <option value="newest">Newest</option>
+            <option value="most-worn">Most worn</option>
             <option value="price-desc">Price: high to low</option>
             <option value="price-asc">Price: low to high</option>
           </select>
@@ -205,7 +207,7 @@ function ClosetList({ items, onAdd, onOpen, onToggleStar, starring, starredOnly,
   );
 }
 
-function ItemDetails({ item, onBack, onEdit, onDelete, deleting, error, onToggleStar, starring }) {
+function ItemDetails({ item, onBack, onEdit, onDelete, deleting, error, onToggleStar, starring, onWearChanged }) {
   return (
     <section className="closet-content item-detail-page">
       <button className="text-back-button" type="button" onClick={onBack}>
@@ -238,6 +240,8 @@ function ItemDetails({ item, onBack, onEdit, onDelete, deleting, error, onToggle
           <div><dt>Size</dt><dd>{item.size || "—"}</dd></div>
           <div><dt>Color</dt><dd>{item.color || "—"}</dd></div>
           <div><dt>Price</dt><dd>{formatPrice(item.price)}</dd></div>
+          <div><dt>Wear count</dt><dd>{item.wearCount}</dd></div>
+          <div><dt>Cost per wear</dt><dd>{item.costPerWear == null ? "" : formatPrice(item.costPerWear)}</dd></div>
           <div><dt>Purchased</dt><dd>{formatDate(item.purchasedOn)}</dd></div>
           <div>
             <dt>Available to lend</dt>
@@ -249,6 +253,7 @@ function ItemDetails({ item, onBack, onEdit, onDelete, deleting, error, onToggle
           </div>
         </dl>
       </div>
+      <WearLog key={item.id} itemId={item.id} request={closetRequest} onChanged={onWearChanged} />
     </section>
   );
 }
@@ -541,6 +546,11 @@ export default function ClosetApp({ user, onLogout }) {
     navigate(`/items/${savedItem.id}`);
   }
 
+  async function refreshWearStats() {
+    const { item: updated } = await closetRequest(`/api/items/${route.id}`);
+    setItem((current) => current?.id === updated.id ? updated : current);
+  }
+
   return (
     <main className="closet-page">
       <ClosetHeader user={user} onLogout={onLogout} />
@@ -590,6 +600,7 @@ export default function ClosetApp({ user, onLogout }) {
           error={actionError}
           onToggleStar={toggleStar}
           starring={starring}
+          onWearChanged={refreshWearStats}
         />
       ) : null}
       <p className="closet-footer">Borrowed · Keep the good stuff close.</p>

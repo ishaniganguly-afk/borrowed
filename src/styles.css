@@ -803,6 +803,48 @@ input:focus-visible {
   margin-top: 0;
 }
 
+.wear-log {
+  margin-top: 24px;
+}
+
+.wear-log h2,
+.wear-log h3 {
+  font-family: "Manrope", sans-serif;
+  color: var(--plum);
+}
+
+.wear-log-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  align-items: end;
+  gap: 16px;
+}
+
+.wear-history {
+  padding: 0;
+  list-style: none;
+}
+
+.wear-history li {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 0;
+  border-top: 1px solid #e8dce3;
+}
+
+.wear-history time {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.wear-history p {
+  margin: 6px 0 0;
+  overflow-wrap: anywhere;
+}
+
 .closet-empty {
   max-width: 620px;
   margin-top: 36px;
