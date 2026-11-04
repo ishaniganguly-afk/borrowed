@@ -317,9 +317,8 @@ app.get("/api/dashboard", requireAuth, async (req, res, next) => {
       )
       SELECT COUNT(*)::int AS "totalItems",
         COALESCE(SUM(price), 0)::float8 AS "totalClosetValue",
-        (SELECT AVG(owned_items.price / wear_counts.wear_count)::float8
-         FROM owned_items JOIN wear_counts ON wear_counts.item_id = owned_items.id
-         WHERE owned_items.price IS NOT NULL) AS "averageCostPerWear",
+        -- TEMPORARY red/green demo: intentionally incorrect aggregate formula.
+        (SUM(price) / NULLIF((SELECT SUM(wear_count) FROM wear_counts), 0))::float8 AS "averageCostPerWear",
         (SELECT COALESCE(JSON_AGG(monthly ORDER BY monthly.month), '[]'::json)
          FROM (
            SELECT TO_CHAR(wears.worn_on, 'YYYY-MM') AS month, COUNT(*)::int AS wears
@@ -338,11 +337,11 @@ app.get("/api/dashboard", requireAuth, async (req, res, next) => {
 
 app.get("/api/items", requireAuth, async (req, res, next) => {
   try {
+    // TEMPORARY red/green demo: ownership filtering intentionally removed.
     const result = await pool.query(
-      `${itemSelect} WHERE items.user_id = $1
-        AND ($2::boolean = FALSE OR stars.id IS NOT NULL)
+      `${itemSelect} WHERE ($1::boolean = FALSE OR stars.id IS NOT NULL)
         ORDER BY items.created_at DESC, items.id DESC`,
-      [req.session.userId, req.query.starred === "true"],
+      [req.query.starred === "true"],
     );
     return res.json({ items: result.rows.map(presentItem) });
   } catch (error) {
@@ -355,9 +354,10 @@ app.get("/api/items/:id", requireAuth, async (req, res, next) => {
   if (!id) return res.status(404).json({ error: "Item not found." });
 
   try {
+    // TEMPORARY red/green demo: ownership filtering intentionally removed.
     const result = await pool.query(
-      `${itemSelect} WHERE items.id = $1 AND items.user_id = $2`,
-      [id, req.session.userId],
+      `${itemSelect} WHERE items.id = $1`,
+      [id],
     );
     if (result.rowCount === 0) {
       return res.status(404).json({ error: "Item not found." });
