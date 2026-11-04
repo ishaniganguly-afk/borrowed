@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { validateItem } from "../shared/item-validation.js";
 import { findClosetItems } from "./closet-filters.js";
 import WearLog from "./WearLog.jsx";
+import Dashboard from "./Dashboard.jsx";
 
 async function closetRequest(path, options = {}) {
   const response = await fetch(path, {
@@ -25,6 +26,7 @@ function readRoute() {
   const path = window.location.pathname.replace(/\/+$/, "") || "/";
   if (path === "/items/new") return { type: "create" };
   if (path === "/starred") return { type: "list", starred: true };
+  if (path === "/dashboard") return { type: "dashboard" };
 
   const editMatch = path.match(/^\/items\/([^/]+)\/edit$/);
   if (editMatch) return { type: "edit", id: editMatch[1] };
@@ -64,7 +66,7 @@ function formatDate(value) {
       });
 }
 
-function ClosetHeader({ user, onLogout }) {
+function ClosetHeader({ user, onLogout, onNavigate, dashboardActive }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
@@ -85,6 +87,14 @@ function ClosetHeader({ user, onLogout }) {
     <>
       <header className="closet-header">
         <Brand />
+        <nav className="closet-top-nav" aria-label="Main navigation">
+          <a href="/" aria-current={!dashboardActive ? "page" : undefined} onClick={(event) => {
+            event.preventDefault(); onNavigate("/");
+          }}>My Closet</a>
+          <a href="/dashboard" aria-current={dashboardActive ? "page" : undefined} onClick={(event) => {
+            event.preventDefault(); onNavigate("/dashboard");
+          }}>Dashboard</a>
+        </nav>
         <div className="account-actions">
           <span className="account-email">{user.email}</span>
           <button className="logout-button" type="button" onClick={logout} disabled={busy}>
@@ -454,6 +464,7 @@ export default function ClosetApp({ user, onLogout }) {
   });
   const [categories, setCategories] = useState([]);
   const [item, setItem] = useState(null);
+  const [dashboard, setDashboard] = useState(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [actionError, setActionError] = useState("");
@@ -487,6 +498,11 @@ export default function ClosetApp({ user, onLogout }) {
 
     async function loadRoute() {
       try {
+        if (route.type === "dashboard") {
+          const { dashboard: loadedDashboard } = await closetRequest("/api/dashboard");
+          if (active) setDashboard(loadedDashboard);
+          return;
+        }
         const { categories: loadedCategories } = await closetRequest("/api/categories");
         if (!active) return;
         setCategories(loadedCategories);
@@ -553,7 +569,7 @@ export default function ClosetApp({ user, onLogout }) {
 
   return (
     <main className="closet-page">
-      <ClosetHeader user={user} onLogout={onLogout} />
+      <ClosetHeader user={user} onLogout={onLogout} onNavigate={navigate} dashboardActive={route.type === "dashboard"} />
       {loading ? (
         <div className="closet-loading" aria-live="polite">
           <span className="loading-mark">b.</span>
@@ -568,6 +584,8 @@ export default function ClosetApp({ user, onLogout }) {
             Back to My Closet
           </button>
         </section>
+      ) : route.type === "dashboard" && dashboard ? (
+        <Dashboard data={dashboard} />
       ) : route.type === "list" ? (
         <ClosetList
           items={findClosetItems(items, { ...filters, starredOnly: route.starred })}
