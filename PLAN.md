@@ -64,3 +64,20 @@ Inspiration: **Depop** for the closet grid and item pages, and **Indyx** for the
 
 - **Least sure I can build:** the public lending closet link. It has to work without logging in while still never exposing items that aren't marked "available to lend," which is the same data-isolation rule my test checks.
 - **Cut first:** photo upload. If storage setup eats too much time, I'll swap it for a plain "photo URL" text field and replace it with a different small feature (a "random outfit pick" button).
+
+## Plan vs. Reality
+
+| Planned feature | Shipped / Changed / Cut | Status | Learning | What changed and why |
+|---|---|---|---|---|
+| 1. Sign up and login | Shipped | Done | The agent defaults to Replit's own login, so I had to say "no Replit Auth" explicitly. | Built as planned; the agent added a `user_sessions` table I hadn't planned. |
+| 2. Data model | Shipped | Done | CRUD needs the tables anyway, so building them together saved a full PR cycle. | Built in the same PR as CRUD. |
+| 3. Create / read / update / delete | Shipped | Done | Server-side ownership checks are what make data isolation real. | Built as planned, without the photo field. |
+| 4. Validation | Shipped | Done | Form checks alone can be bypassed. | Added matching server-side checks, plus a check for categories that don't exist. |
+| 5. Stars | Shipped | Done | A single junction table with a unique pair rule prevents duplicate stars. | Built as planned. |
+| 6. Find things | Changed | Done | My feature order had a hidden dependency. | "Most worn" sort moved to the wear log feature, because the wears table didn't exist yet. |
+| 7. Wear log | Changed | Done | Always check the branch before prompting the agent. | Also added "most worn" sorting. It was first built on an already-merged branch, and I moved it to a new branch before pushing. |
+| 8. Dashboard | Shipped | Done | Writing the exact formula in my plan made the test easy to write. | Built as planned. I linked its Issue after merging. |
+| 9. Photo upload | Cut | Backlogged | Planning a fallback ahead of time made the cut an easy decision. | Replaced with the planned fallback, a "Pick for me" random outfit button, to save time on storage setup. The closet shows cards instead of a photo grid. |
+| 10. Public lending closet link | Shipped | Done | Keeping a separate list of public fields protects private data. | Built as planned, with no prices or email on the public page. |
+| Not planned: deployment setup | Added | Done | Imported projects don't come with production settings. | Publishing was blocked until I added build and start commands in a separate PR. |
+| Not planned: plan file rename | Added | Done | Check file names after uploading. | My plan uploaded as `borrowed.md`. I renamed it to PLAN.md in a separate PR. |
