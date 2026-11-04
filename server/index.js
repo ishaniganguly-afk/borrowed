@@ -257,6 +257,37 @@ app.get("/api/categories", requireAuth, async (_req, res, next) => {
   }
 });
 
+app.get("/api/dashboard", requireAuth, async (req, res, next) => {
+  try {
+    const result = await pool.query(
+      `WITH owned_items AS (
+        SELECT id, price FROM items WHERE user_id = $1
+      ), wear_counts AS (
+        SELECT wears.item_id, COUNT(*) AS wear_count
+        FROM wears JOIN owned_items ON owned_items.id = wears.item_id
+        WHERE wears.user_id = $1 GROUP BY wears.item_id
+      )
+      SELECT COUNT(*)::int AS "totalItems",
+        COALESCE(SUM(price), 0)::float8 AS "totalClosetValue",
+        (SELECT AVG(owned_items.price / wear_counts.wear_count)::float8
+         FROM owned_items JOIN wear_counts ON wear_counts.item_id = owned_items.id
+         WHERE owned_items.price IS NOT NULL) AS "averageCostPerWear",
+        (SELECT COALESCE(JSON_AGG(monthly ORDER BY monthly.month), '[]'::json)
+         FROM (
+           SELECT TO_CHAR(wears.worn_on, 'YYYY-MM') AS month, COUNT(*)::int AS wears
+           FROM wears JOIN owned_items ON owned_items.id = wears.item_id
+           WHERE wears.user_id = $1
+           GROUP BY TO_CHAR(wears.worn_on, 'YYYY-MM')
+         ) AS monthly) AS "wearsByMonth"
+      FROM owned_items`,
+      [req.session.userId],
+    );
+    return res.json({ dashboard: result.rows[0] });
+  } catch (error) {
+    return next(error);
+  }
+});
+
 app.get("/api/items", requireAuth, async (req, res, next) => {
   try {
     const result = await pool.query(
