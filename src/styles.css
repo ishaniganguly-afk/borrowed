@@ -893,6 +893,67 @@ input:focus-visible {
   margin-top: 22px;
 }
 
+.lending-share {
+  margin-top: 22px;
+}
+
+.lending-share-link {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 14px;
+  padding: 20px;
+  border: 1px solid rgba(35, 20, 51, 0.08);
+  border-radius: 21px;
+  background: rgba(255, 250, 252, 0.9);
+  font-size: 13px;
+}
+
+.lending-share-link p {
+  width: 100%;
+  margin: 0;
+  color: #75697b;
+}
+
+.lending-share-link a {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  color: var(--plum);
+  text-decoration-color: var(--pink);
+}
+
+.public-closet > h1 {
+  font-family: "Manrope", sans-serif;
+  font-size: clamp(32px, 5vw, 54px);
+  letter-spacing: -1.5px;
+}
+
+.public-closet > h1 span {
+  color: var(--pink);
+}
+
+.public-item-card dl {
+  width: 100%;
+  margin: 0;
+  font-size: 13px;
+}
+
+.public-item-card dl > div {
+  margin-top: 12px;
+}
+
+.public-item-card dt {
+  color: #75697b;
+  font-size: 11px;
+}
+
+.public-item-card dd {
+  margin: 4px 0 0;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
 .closet-pick-result,
 .closet-pick-message {
   margin: 16px 0 0;

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import ClosetApp from "./Closet.jsx";
+import PublicCloset from "./PublicCloset.jsx";
 
 async function request(path, options = {}) {
   const response = await fetch(path, {
@@ -177,7 +178,7 @@ function AuthScreen({ onAuthenticated }) {
   );
 }
 
-export default function App() {
+function PrivateApp() {
   const [user, setUser] = useState(null);
   const [checkingSession, setCheckingSession] = useState(true);
 
@@ -212,4 +213,9 @@ export default function App() {
   ) : (
     <AuthScreen onAuthenticated={setUser} />
   );
+}
+
+export default function App() {
+  const publicRoute = window.location.pathname.match(/^\/c\/([^/]+)\/?$/);
+  return publicRoute ? <PublicCloset slug={publicRoute[1]} /> : <PrivateApp />;
 }
